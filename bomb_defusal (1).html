@@ -1,0 +1,2132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DEFUSE — Multiplayer Bomb Defusal</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#0a0c0f;--bg2:#111318;--bg3:#181c24;
+--red:#ff2233;--green:#00ff88;--amber:#ffaa00;--blue:#00aaff;--dim:#444;
+--text:#e8eaf0;--text2:#8899aa;
+--border:#1e2530;--glow:0 0 10px rgba(0,255,136,.25);
+font-family:'Courier New',monospace;
+}
+body{background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;user-select:none}
+#app{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;position:relative}
+
+/* SCREENS */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:var(--bg)}
+.screen.active{display:flex}
+
+/* TYPOGRAPHY */
+h1{font-size:clamp(28px,5vw,52px);letter-spacing:6px;color:var(--green);text-transform:uppercase;text-shadow:0 0 20px rgba(0,255,136,.5)}
+h2{font-size:clamp(18px,3vw,28px);letter-spacing:4px;color:var(--amber);text-transform:uppercase}
+h3{font-size:14px;letter-spacing:2px;color:var(--text2);text-transform:uppercase}
+p{color:var(--text2);font-size:13px;line-height:1.7}
+
+/* BUTTONS */
+.btn{
+background:transparent;border:1px solid var(--green);color:var(--green);
+padding:12px 28px;font-family:inherit;font-size:13px;letter-spacing:2px;
+text-transform:uppercase;cursor:pointer;transition:all .15s;
+position:relative;overflow:hidden;
+}
+.btn:hover{background:rgba(0,255,136,.1);box-shadow:0 0 15px rgba(0,255,136,.3)}
+.btn:active{transform:scale(.97)}
+.btn.red{border-color:var(--red);color:var(--red)}
+.btn.red:hover{background:rgba(255,34,51,.1);box-shadow:0 0 15px rgba(255,34,51,.3)}
+.btn.amber{border-color:var(--amber);color:var(--amber)}
+.btn.amber:hover{background:rgba(255,170,0,.1)}
+.btn.blue{border-color:var(--blue);color:var(--blue)}
+.btn.blue:hover{background:rgba(0,170,255,.1)}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+
+/* INPUT */
+input,select{
+background:var(--bg2);border:1px solid var(--border);color:var(--text);
+padding:10px 14px;font-family:inherit;font-size:13px;width:100%;
+outline:none;transition:border-color .15s;
+}
+input:focus,select:focus{border-color:var(--green)}
+input::placeholder{color:var(--dim)}
+
+/* PANELS */
+.panel{background:var(--bg2);border:1px solid var(--border);padding:20px;position:relative}
+.panel-title{font-size:10px;letter-spacing:3px;color:var(--text2);text-transform:uppercase;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:8px}
+
+/* FLEX UTILS */
+.row{display:flex;gap:12px;align-items:center}
+.col{display:flex;flex-direction:column;gap:12px}
+.center{align-items:center;justify-content:center}
+.gap4{gap:4px}.gap8{gap:8px}.gap16{gap:16px}.gap24{gap:24px}
+
+/* === LOADING === */
+#s-loading{background:var(--bg)}
+.load-bar-wrap{width:300px;height:3px;background:var(--border);overflow:hidden;margin-top:30px}
+.load-bar{height:100%;background:var(--green);width:0;transition:width .1s}
+
+/* === MAIN MENU === */
+.menu-logo{text-align:center;margin-bottom:40px}
+.menu-sub{font-size:11px;letter-spacing:4px;color:var(--text2);margin-top:8px}
+.menu-btns{display:flex;flex-direction:column;gap:12px;width:280px}
+
+/* === LOBBY === */
+.lobby-wrap{display:flex;gap:24px;width:min(900px,98vw);flex-wrap:wrap;justify-content:center}
+.room-code-display{
+font-size:clamp(32px,6vw,52px);letter-spacing:12px;color:var(--green);
+border:2px solid var(--green);padding:16px 32px;text-align:center;
+box-shadow:var(--glow);margin:16px 0;
+}
+.player-slot{
+border:1px solid var(--border);padding:14px;display:flex;align-items:center;gap:12px;
+background:var(--bg3);min-height:60px;
+}
+.player-dot{width:10px;height:10px;border-radius:50%;background:var(--dim);flex-shrink:0}
+.player-dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+.player-dot.amber{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.role-badge{font-size:10px;letter-spacing:2px;padding:3px 8px;border:1px solid;text-transform:uppercase}
+.role-badge.defuser{border-color:var(--red);color:var(--red)}
+.role-badge.reader{border-color:var(--blue);color:var(--blue)}
+
+/* === ROLE SELECT === */
+.role-cards{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;margin:24px 0}
+.role-card{
+width:240px;border:1px solid var(--border);padding:24px;cursor:pointer;
+transition:all .2s;background:var(--bg2);text-align:center;
+}
+.role-card:hover{border-color:var(--green);background:var(--bg3)}
+.role-card.selected{border-color:var(--green);box-shadow:0 0 20px rgba(0,255,136,.2)}
+.role-icon{font-size:40px;margin-bottom:12px}
+.role-name{font-size:14px;letter-spacing:3px;text-transform:uppercase;color:var(--amber);margin-bottom:8px}
+.role-desc{font-size:11px;color:var(--text2);line-height:1.7}
+
+/* === GAMEPLAY === */
+#s-game{flex-direction:row;align-items:stretch;background:var(--bg);padding:0;overflow:hidden}
+
+/* DEFUSER SIDE */
+#defuser-view{
+flex:1;display:flex;flex-direction:column;background:var(--bg);
+border-right:1px solid var(--border);overflow:hidden;
+}
+#bomb-container{
+flex:1;display:flex;align-items:center;justify-content:center;
+background:var(--bg);overflow:hidden;padding:16px;
+}
+#bomb-canvas{display:block;image-rendering:pixelated}
+
+/* MANUAL / READER SIDE */
+#reader-view{
+width:340px;display:flex;flex-direction:column;background:var(--bg2);overflow:hidden;flex-shrink:0;
+}
+#manual-scroll{flex:1;overflow-y:auto;padding:16px;scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
+#manual-scroll::-webkit-scrollbar{width:4px}
+#manual-scroll::-webkit-scrollbar-thumb{background:var(--dim)}
+
+/* HUD */
+#hud{
+height:54px;background:var(--bg2);border-bottom:1px solid var(--border);
+display:flex;align-items:center;justify-content:space-between;padding:0 16px;
+flex-shrink:0;
+}
+#hud-left,#hud-right{display:flex;align-items:center;gap:16px}
+#timer-display{
+font-size:28px;letter-spacing:4px;color:var(--green);font-weight:bold;
+text-shadow:0 0 10px rgba(0,255,136,.5);
+}
+#timer-display.warn{color:var(--amber);text-shadow:0 0 10px rgba(255,170,0,.5)}
+#timer-display.crit{color:var(--red);text-shadow:0 0 10px rgba(255,34,51,.7);animation:pulse .5s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:1}to{opacity:.6}}
+.strikes-wrap{display:flex;gap:6px}
+.strike-dot{width:14px;height:14px;border:1px solid var(--dim);border-radius:50%;transition:all .2s}
+.strike-dot.hit{background:var(--red);border-color:var(--red);box-shadow:0 0 6px var(--red)}
+.diff-badge{font-size:9px;letter-spacing:2px;padding:2px 8px;border:1px solid var(--dim);color:var(--dim);text-transform:uppercase}
+#level-display{font-size:11px;letter-spacing:2px;color:var(--text2)}
+
+/* MODULE PANELS */
+.module{
+background:var(--bg3);border:1px solid #2a3040;padding:14px;
+margin-bottom:12px;position:relative;overflow:hidden;
+}
+.module-label{font-size:9px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;margin-bottom:10px}
+.module-status{
+position:absolute;top:8px;right:8px;font-size:9px;letter-spacing:1px;padding:2px 6px;
+border:1px solid;text-transform:uppercase;
+}
+.module-status.solved{border-color:var(--green);color:var(--green)}
+.module-status.failed{border-color:var(--red);color:var(--red)}
+.module-status.active{border-color:var(--amber);color:var(--amber)}
+
+/* WIRE MODULE */
+.wire-container{display:flex;flex-direction:column;gap:8px;padding:4px 0}
+.wire-item{
+display:flex;align-items:center;gap:10px;padding:6px 10px;
+border:1px solid transparent;cursor:pointer;transition:all .15s;
+}
+.wire-item:not(.cut):hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.04)}
+.wire-item.cut{opacity:.3;text-decoration:line-through;cursor:default}
+.wire-line{height:4px;flex:1;border-radius:2px;position:relative}
+.wire-line::before,.wire-line::after{
+content:'●';position:absolute;top:50%;transform:translateY(-50%);
+font-size:10px;color:inherit;
+}
+.wire-line::before{left:-2px}
+.wire-line::after{right:-2px}
+.wire-label{font-size:11px;min-width:60px}
+
+/* BUTTON MODULE */
+.big-btn-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+.big-btn{
+width:80px;height:80px;border-radius:50%;border:3px solid;cursor:pointer;
+font-size:11px;letter-spacing:1px;text-transform:uppercase;font-family:inherit;
+transition:all .15s;position:relative;
+}
+.big-btn:hover{filter:brightness(1.3);transform:scale(1.05)}
+.big-btn:active{transform:scale(.95)}
+.btn-hint{font-size:11px;color:var(--text2);text-align:center;max-width:160px}
+
+/* KEYPAD MODULE */
+.keypad-display{
+background:var(--bg);border:1px solid var(--border);padding:8px 14px;
+font-size:18px;letter-spacing:4px;min-height:38px;margin-bottom:10px;
+color:var(--green);text-align:right;
+}
+.keypad-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.kpad-btn{
+background:var(--bg2);border:1px solid var(--border);color:var(--text);
+padding:10px;font-family:inherit;font-size:13px;cursor:pointer;transition:all .1s;
+}
+.kpad-btn:hover{background:var(--bg3);border-color:var(--dim)}
+.kpad-btn:active{transform:scale(.95)}
+
+/* MEMORY MODULE */
+.mem-display{
+display:flex;gap:8px;justify-content:center;margin-bottom:12px;flex-wrap:wrap;
+}
+.mem-light{
+width:32px;height:32px;border:1px solid var(--border);display:flex;
+align-items:center;justify-content:center;font-size:13px;cursor:pointer;transition:all .15s;
+}
+.mem-light.lit{background:var(--amber);color:#000;border-color:var(--amber);box-shadow:0 0 8px var(--amber)}
+.mem-light.green{background:var(--green);color:#000;border-color:var(--green)}
+.mem-light.red{background:var(--red);color:#fff;border-color:var(--red)}
+.mem-seq{font-size:11px;color:var(--text2);text-align:center;margin-bottom:8px}
+
+/* SWITCH MODULE */
+.switch-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+.switch-item{
+display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;
+}
+.switch-body{
+width:28px;height:48px;border:1px solid var(--dim);border-radius:4px;
+background:var(--bg);display:flex;align-items:flex-end;padding:3px;transition:all .15s;
+}
+.switch-body.on{align-items:flex-start;background:rgba(0,255,136,.1);border-color:var(--green)}
+.switch-knob{width:100%;height:18px;background:var(--dim);border-radius:2px;transition:all .15s}
+.switch-body.on .switch-knob{background:var(--green)}
+.switch-num{font-size:10px;color:var(--dim)}
+
+/* SYMBOL MODULE */
+.symbol-grid{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+.sym-btn{
+width:44px;height:44px;border:1px solid var(--border);background:var(--bg);
+font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+transition:all .15s;
+}
+.sym-btn:hover{border-color:var(--amber);background:rgba(255,170,0,.1)}
+.sym-btn.selected{border-color:var(--amber);background:rgba(255,170,0,.15);box-shadow:0 0 8px rgba(255,170,0,.4)}
+.sym-btn.correct{border-color:var(--green);background:rgba(0,255,136,.1)}
+.sym-btn.wrong{border-color:var(--red);background:rgba(255,34,51,.1)}
+
+/* MORSE MODULE */
+.morse-display{
+font-size:13px;letter-spacing:2px;color:var(--amber);min-height:24px;
+text-align:center;margin-bottom:10px;padding:8px;border:1px solid var(--border);
+}
+.morse-light{
+width:40px;height:40px;border-radius:50%;border:2px solid var(--amber);
+margin:0 auto 10px;transition:background .05s;
+}
+.morse-light.lit{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+
+/* MANUAL STYLES */
+.manual-cover{text-align:center;padding:20px 0;border-bottom:1px solid var(--border);margin-bottom:16px}
+.manual-cover h2{font-size:16px;color:var(--amber)}
+.manual-cover p{font-size:10px;color:var(--dim);margin-top:4px}
+.man-section{margin-bottom:20px}
+.man-section h3{font-size:10px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.man-section p,.man-section li{font-size:11px;color:var(--text2);line-height:1.8;margin-bottom:4px}
+.man-section ul,.man-section ol{padding-left:16px}
+.man-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px}
+.man-table th{background:var(--bg3);padding:5px 8px;text-align:left;color:var(--text2);font-weight:normal;letter-spacing:1px;font-size:10px;border:1px solid var(--border)}
+.man-table td{padding:5px 8px;border:1px solid var(--border);color:var(--text);font-size:11px}
+.man-table tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+.man-highlight{background:rgba(255,170,0,.08);border-left:2px solid var(--amber);padding:8px 10px;margin:8px 0;font-size:11px;color:var(--text2)}
+.man-warn{background:rgba(255,34,51,.08);border-left:2px solid var(--red);padding:8px 10px;margin:8px 0;font-size:11px;color:var(--text2)}
+
+/* CHAT */
+#chat-wrap{border-top:1px solid var(--border);height:160px;display:flex;flex-direction:column;flex-shrink:0}
+#chat-log{flex:1;overflow-y:auto;padding:8px 12px;font-size:11px;scrollbar-width:thin;scrollbar-color:var(--dim) transparent}
+#chat-log::-webkit-scrollbar{width:3px}
+.chat-msg{margin-bottom:4px;line-height:1.5}
+.chat-msg .who{color:var(--amber);margin-right:6px}
+.chat-msg .who.p2{color:var(--blue)}
+.chat-row{display:flex;gap:8px;padding:8px;border-top:1px solid var(--border)}
+#chat-input{flex:1;background:transparent;border:none;font-size:11px;color:var(--text)}
+#chat-input:focus{outline:none}
+#chat-send{background:transparent;border:1px solid var(--dim);color:var(--dim);padding:4px 10px;cursor:pointer;font-size:11px;font-family:inherit;transition:all .15s}
+#chat-send:hover{border-color:var(--green);color:var(--green)}
+
+/* OVERLAY SCREENS */
+.overlay{
+position:fixed;inset:0;background:rgba(0,0,0,.88);
+display:none;flex-direction:column;align-items:center;justify-content:center;
+z-index:100;padding:20px;
+}
+.overlay.active{display:flex}
+
+/* GAMEOVER / WIN */
+.result-box{
+border:1px solid var(--border);padding:32px;text-align:center;
+background:var(--bg2);max-width:460px;width:100%;
+}
+.result-title{font-size:clamp(24px,5vw,42px);letter-spacing:6px;text-transform:uppercase;margin-bottom:16px}
+.result-title.win{color:var(--green);text-shadow:0 0 20px rgba(0,255,136,.5)}
+.result-title.lose{color:var(--red);text-shadow:0 0 20px rgba(255,34,51,.5)}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0}
+.stat-box{background:var(--bg3);padding:14px;text-align:center}
+.stat-val{font-size:22px;letter-spacing:2px;color:var(--amber);margin-bottom:4px}
+.stat-label{font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
+
+/* EFFECTS */
+.shake{animation:shake .3s ease-in-out}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.flash-red{animation:flashred .4s ease-in-out}
+@keyframes flashred{0%,100%{background:var(--bg)}50%{background:rgba(255,34,51,.25)}}
+
+/* EXPLOSION */
+#explosion-canvas{position:fixed;inset:0;pointer-events:none;z-index:200;display:none}
+
+/* DIFF SELECT */
+.diff-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;max-width:500px;margin:20px 0}
+.diff-card{
+border:1px solid var(--border);padding:18px;cursor:pointer;background:var(--bg2);
+text-align:center;transition:all .2s;
+}
+.diff-card:hover{border-color:var(--amber);background:var(--bg3)}
+.diff-card.selected{border-color:var(--amber);box-shadow:0 0 14px rgba(255,170,0,.2)}
+.diff-name{font-size:13px;letter-spacing:3px;text-transform:uppercase;margin-bottom:6px}
+.diff-desc{font-size:10px;color:var(--text2);line-height:1.6}
+
+/* HIGH SCORES */
+.hs-table{width:100%;border-collapse:collapse;max-width:500px}
+.hs-table th{font-size:10px;letter-spacing:2px;color:var(--text2);padding:6px 10px;text-align:left;border-bottom:1px solid var(--border)}
+.hs-table td{padding:8px 10px;font-size:12px;border-bottom:1px solid var(--border)}
+.hs-rank{color:var(--amber);font-size:13px}
+
+/* MOBILE */
+@media(max-width:700px){
+#reader-view{width:100%;border-right:none;border-top:1px solid var(--border)}
+#s-game{flex-direction:column}
+.diff-cards{grid-template-columns:1fr 1fr}
+}
+
+/* SETTINGS */
+.setting-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.setting-row:last-child{border-bottom:none}
+.setting-label{font-size:12px;letter-spacing:1px;color:var(--text2)}
+.toggle{width:40px;height:22px;background:var(--border);border-radius:11px;cursor:pointer;position:relative;transition:background .2s}
+.toggle.on{background:var(--green)}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:left .2s}
+.toggle.on::after{left:21px}
+
+/* CONNECTING */
+.dot-anim::after{content:'...';animation:dots 1.5s infinite}
+@keyframes dots{0%{content:'.'}33%{content:'..'}66%{content:'...'}100%{content:'.'}}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- LOADING -->
+<div id="s-loading" class="screen active">
+  <h1>DEFUSE</h1>
+  <div class="menu-sub">MULTIPLAYER BOMB DEFUSAL</div>
+  <div class="load-bar-wrap"><div class="load-bar" id="load-bar"></div></div>
+  <p id="load-status" style="margin-top:12px;font-size:11px;letter-spacing:2px;color:var(--dim)">INITIALIZING</p>
+</div>
+
+<!-- MAIN MENU -->
+<div id="s-menu" class="screen">
+  <div class="menu-logo">
+    <h1>DEFUSE</h1>
+    <div class="menu-sub">MULTIPLAYER BOMB DEFUSAL SYSTEM</div>
+  </div>
+  <div class="menu-btns">
+    <button class="btn" onclick="G.showScreen('s-diff')">NEW GAME</button>
+    <button class="btn blue" onclick="G.showScreen('s-join')">JOIN ROOM</button>
+    <button class="btn amber" onclick="G.showScreen('s-scores')">HIGH SCORES</button>
+    <button class="btn" onclick="G.showScreen('s-settings')">SETTINGS</button>
+  </div>
+  <p style="margin-top:30px;font-size:10px;letter-spacing:2px;color:var(--dim)">v1.0.0 — SINGLE DEVICE OR SHARE LINK</p>
+</div>
+
+<!-- DIFFICULTY SELECT -->
+<div id="s-diff" class="screen">
+  <h2>SELECT DIFFICULTY</h2>
+  <div class="diff-cards" id="diff-cards">
+    <div class="diff-card selected" data-diff="easy" onclick="G.selectDiff(this)">
+      <div class="diff-name" style="color:#00ff88">EASY</div>
+      <div class="diff-desc">Simple puzzles · 2:08 timer · 4 modules · Forgiving</div>
+    </div>
+    <div class="diff-card" data-diff="medium" onclick="G.selectDiff(this)">
+      <div class="diff-name" style="color:#ffaa00">MEDIUM</div>
+      <div class="diff-desc">Moderate puzzles · Faster timer · More modules</div>
+    </div>
+    <div class="diff-card" data-diff="hard" onclick="G.selectDiff(this)">
+      <div class="diff-name" style="color:#ff6644">HARD</div>
+      <div class="diff-desc">Complex logic · Fast countdown · Deceptive clues</div>
+    </div>
+    <div class="diff-card" data-diff="extreme" onclick="G.selectDiff(this)">
+      <div class="diff-name" style="color:#ff2233">EXTREME</div>
+      <div class="diff-desc">Near-impossible · Screen chaos · Minimal time</div>
+    </div>
+  </div>
+  <div class="row">
+    <button class="btn" style="width:140px" onclick="G.showScreen('s-menu')">BACK</button>
+    <button class="btn" style="width:140px" onclick="G.createRoom()">CREATE ROOM</button>
+  </div>
+</div>
+
+<!-- JOIN SCREEN -->
+<div id="s-join" class="screen">
+  <h2>JOIN ROOM</h2>
+  <div class="col" style="width:300px;margin-top:24px">
+    <input id="join-code" placeholder="ENTER ROOM CODE" maxlength="6" style="text-align:center;font-size:20px;letter-spacing:6px;text-transform:uppercase">
+    <button class="btn" onclick="G.joinRoom()">JOIN</button>
+    <button class="btn" style="width:100%" onclick="G.showScreen('s-menu')">BACK</button>
+  </div>
+  <p id="join-err" style="color:var(--red);font-size:12px;margin-top:8px;letter-spacing:1px"></p>
+</div>
+
+<!-- LOBBY -->
+<div id="s-lobby" class="screen">
+  <h2>ROOM LOBBY</h2>
+  <div class="lobby-wrap">
+    <div class="col" style="align-items:center;gap:8px">
+      <h3>ROOM CODE</h3>
+      <div class="room-code-display" id="room-code-display">------</div>
+      <button class="btn" style="font-size:10px;padding:8px 16px" onclick="G.copyRoomCode()">COPY CODE</button>
+      <p id="diff-label" style="font-size:11px;letter-spacing:2px;color:var(--dim)">EASY</p>
+    </div>
+    <div class="col" style="min-width:260px">
+      <div class="panel">
+        <div class="panel-title">PLAYERS</div>
+        <div class="player-slot" id="p1-slot">
+          <div class="player-dot on"></div>
+          <div class="col" style="gap:2px;flex:1">
+            <div style="font-size:12px;letter-spacing:1px" id="p1-name">HOST</div>
+            <div style="font-size:10px;color:var(--dim)" id="p1-role">No role selected</div>
+          </div>
+          <div id="p1-badge"></div>
+        </div>
+        <div class="player-slot" style="margin-top:8px" id="p2-slot">
+          <div class="player-dot" id="p2-dot"></div>
+          <div class="col" style="gap:2px;flex:1">
+            <div style="font-size:12px;letter-spacing:1px" id="p2-name">WAITING...</div>
+            <div style="font-size:10px;color:var(--dim)" id="p2-role">—</div>
+          </div>
+          <div id="p2-badge"></div>
+        </div>
+      </div>
+      <button id="role-btn" class="btn" onclick="G.showScreen('s-role')">SELECT ROLE</button>
+      <button id="ready-btn" class="btn" onclick="G.toggleReady()" disabled>READY</button>
+      <button id="start-btn" class="btn amber" onclick="G.startGame()" style="display:none">START GAME</button>
+      <button class="btn" onclick="G.showScreen('s-menu')">LEAVE</button>
+    </div>
+  </div>
+  <p id="lobby-msg" style="font-size:11px;color:var(--dim);margin-top:8px;letter-spacing:1px"></p>
+</div>
+
+<!-- ROLE SELECT -->
+<div id="s-role" class="screen">
+  <h2>SELECT YOUR ROLE</h2>
+  <div class="role-cards">
+    <div class="role-card" id="role-defuser" onclick="G.selectRole('defuser')">
+      <div class="role-icon">💣</div>
+      <div class="role-name">DEFUSER</div>
+      <div class="role-desc">You see the bomb. You cannot see the manual. Follow instructions from your partner to cut wires and solve puzzles.</div>
+    </div>
+    <div class="role-card" id="role-reader" onclick="G.selectRole('reader')">
+      <div class="role-icon">📋</div>
+      <div class="role-name">MANUAL READER</div>
+      <div class="role-desc">You see the manual. You cannot see the bomb. Guide your partner with precise instructions.</div>
+    </div>
+  </div>
+  <div class="row">
+    <button class="btn" onclick="G.showScreen('s-lobby')">BACK</button>
+    <button id="confirm-role-btn" class="btn amber" disabled onclick="G.confirmRole()">CONFIRM ROLE</button>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="s-game" class="screen">
+  <!-- HUD TOP (full width) -->
+  <div id="defuser-view">
+    <div id="hud">
+      <div id="hud-left">
+        <div id="timer-display">2:08</div>
+        <div class="strikes-wrap" id="strikes">
+          <div class="strike-dot"></div>
+          <div class="strike-dot"></div>
+          <div class="strike-dot"></div>
+        </div>
+        <span id="level-display">LVL 1</span>
+      </div>
+      <div id="hud-right">
+        <span id="hud-diff" class="diff-badge">EASY</span>
+        <button class="btn" style="padding:6px 14px;font-size:10px" onclick="G.pauseGame()">PAUSE</button>
+      </div>
+    </div>
+    <div id="bomb-container">
+      <canvas id="bomb-canvas" width="560" height="400"></canvas>
+    </div>
+    <!-- MODULE PANELS FOR DEFUSER -->
+    <div id="defuser-modules" style="padding:12px;overflow-y:auto;flex:0 0 auto;max-height:320px;border-top:1px solid var(--border)"></div>
+  </div>
+  <!-- READER SIDE -->
+  <div id="reader-view">
+    <div id="hud" style="height:54px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px">
+      <span style="font-size:10px;letter-spacing:2px;color:var(--dim);text-transform:uppercase">Manual</span>
+      <span id="reader-timer" style="font-size:14px;letter-spacing:2px;color:var(--amber);margin-left:auto">2:08</span>
+    </div>
+    <div id="manual-scroll"></div>
+    <div id="chat-wrap">
+      <div id="chat-log"></div>
+      <div class="chat-row">
+        <input id="chat-input" placeholder="type message..." maxlength="120" autocomplete="off">
+        <button id="chat-send" onclick="G.sendChat()">SEND</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAUSE -->
+<div id="s-pause" class="overlay">
+  <div class="result-box">
+    <h2 style="margin-bottom:24px;letter-spacing:4px">PAUSED</h2>
+    <div class="col" style="gap:12px">
+      <button class="btn" onclick="G.resumeGame()">RESUME</button>
+      <button class="btn red" onclick="G.quitGame()">ABANDON MISSION</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="s-gameover" class="overlay">
+  <canvas id="explosion-canvas" width="0" height="0"></canvas>
+  <div class="result-box" id="result-box">
+    <div id="result-title" class="result-title lose">BOOM</div>
+    <p id="result-msg" style="color:var(--text2);margin-bottom:16px;font-size:12px;letter-spacing:1px"></p>
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="col" style="gap:10px;margin-top:8px">
+      <button class="btn amber" onclick="G.restartGame()">TRY AGAIN</button>
+      <button class="btn" onclick="G.showScreen('s-menu')">MAIN MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- HIGH SCORES -->
+<div id="s-scores" class="screen">
+  <h2>HIGH SCORES</h2>
+  <div id="scores-content" style="margin:20px 0;width:min(560px,95vw)"></div>
+  <button class="btn" onclick="G.showScreen('s-menu')">BACK</button>
+</div>
+
+<!-- SETTINGS -->
+<div id="s-settings" class="screen">
+  <h2 style="margin-bottom:24px">SETTINGS</h2>
+  <div class="panel" style="width:min(360px,95vw)">
+    <div class="setting-row">
+      <span class="setting-label">SOUND EFFECTS</span>
+      <div class="toggle on" id="tog-sfx" onclick="G.toggleSetting('sfx',this)"></div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">TICKING SOUND</span>
+      <div class="toggle on" id="tog-tick" onclick="G.toggleSetting('tick',this)"></div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">SCREEN SHAKE</span>
+      <div class="toggle on" id="tog-shake" onclick="G.toggleSetting('shake',this)"></div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">FLASH EFFECTS</span>
+      <div class="toggle on" id="tog-flash" onclick="G.toggleSetting('flash',this)"></div>
+    </div>
+  </div>
+  <button class="btn" style="margin-top:20px" onclick="G.showScreen('s-menu')">BACK</button>
+</div>
+
+</div><!-- #app -->
+
+<canvas id="explosion-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:200;display:none;width:100vw;height:100vh"></canvas>
+
+<script>
+// ===== DEFUSE GAME ENGINE =====
+'use strict';
+const G = (function(){
+
+// ===================== CONSTANTS =====================
+const DIFFS = {
+  easy:    {name:'EASY',   time:128, modules:3, penalty:6,  morse:false, morseChance:0},
+  medium:  {name:'MEDIUM', time:128, modules:4, penalty:10, morse:false, morseChance:.3},
+  hard:    {name:'HARD',   time:110, modules:5, penalty:14, morse:true,  morseChance:.5},
+  extreme: {name:'EXTREME',time:90,  modules:6, penalty:20, morse:true,  morseChance:.7},
+};
+const WIRE_COLORS=['red','blue','yellow','white','black','orange','green','purple'];
+const WIRE_CSS={'red':'#ff2233','blue':'#00aaff','yellow':'#ffee00','white':'#cccccc','black':'#444444','orange':'#ff8800','green':'#00cc55','purple':'#aa44ff'};
+const SYMS=['Ω','Ψ','Φ','λ','Σ','Δ','θ','Ξ','Π','ζ','μ','β'];
+const MORSE_MAP={A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..'};
+
+// ===================== STATE =====================
+let state = {
+  screen:'s-loading',
+  diff:'easy',
+  role:'defuser', // this player's role
+  p2role:'reader',
+  roomCode:'',
+  level:1,
+  strikes:0,
+  timerSec:128,
+  timerInterval:null,
+  tickInterval:null,
+  penaltyActive:false,
+  paused:false,
+  gameActive:false,
+  bomb:null,
+  manual:null,
+  modules:[],    // module states
+  solved:[],
+  chat:[],
+  ready:false,
+  p2ready:false,
+  streak:0,
+  settings:{sfx:true,tick:true,shake:true,flash:true},
+  raf:null,
+  lastTick:0,
+  morseInterval:null,
+  startTime:0,
+};
+
+// ===================== AUDIO ENGINE =====================
+let audioCtx = null;
+let masterGain = null;
+let bgMusicNodes = {};   // holds bg music oscillators/sources
+let alarmNodes = {};     // holds 30s alarm nodes
+let _bgPlaying = false;
+let _alarmPlaying = false;
+let _30sTriggered = false;
+
+function getAudio(){
+  if(!audioCtx){
+    try{
+      audioCtx = new(window.AudioContext||window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.8;
+      masterGain.connect(audioCtx.destination);
+    }catch(e){}
+  }
+  return audioCtx;
+}
+
+// Resume context on first user gesture (browser autoplay policy)
+function resumeAudio(){
+  const ac=getAudio();
+  if(ac && ac.state==='suspended') ac.resume();
+}
+document.addEventListener('click', resumeAudio, {once:false});
+document.addEventListener('keydown', resumeAudio, {once:false});
+
+// ---- Low-level helpers ----
+function beep(freq, dur, type='square', vol=0.15, delay=0){
+  if(!state.settings.sfx) return;
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  try{
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type=type; o.frequency.value=freq;
+    g.gain.setValueAtTime(vol, ac.currentTime+delay);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+delay+dur);
+    o.connect(g); g.connect(masterGain);
+    o.start(ac.currentTime+delay);
+    o.stop(ac.currentTime+delay+dur+0.05);
+  }catch(e){}
+}
+
+function noiseBuffer(ac, duration){
+  const len = Math.floor(ac.sampleRate * duration);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i] = Math.random()*2-1;
+  return buf;
+}
+
+// ---- Tick ----
+function playTick(){
+  if(!state.settings.tick) return;
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  try{
+    // Sharp metallic click
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type='square'; o.frequency.value=1100;
+    g.gain.setValueAtTime(0.22, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.045);
+    o.connect(g); g.connect(masterGain);
+    o.start(); o.stop(ac.currentTime+0.05);
+    // Sub thud underneath
+    const o2=ac.createOscillator(), g2=ac.createGain();
+    o2.type='sine'; o2.frequency.value=60;
+    g2.gain.setValueAtTime(0.12, ac.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.06);
+    o2.connect(g2); g2.connect(masterGain);
+    o2.start(); o2.stop(ac.currentTime+0.07);
+  }catch(e){}
+}
+
+function startTicking(){
+  if(state.tickInterval) clearInterval(state.tickInterval);
+  const rate = getPenaltyRate();
+  state.tickInterval = setInterval(()=>{
+    if(state.gameActive && !state.paused) playTick();
+  }, rate);
+}
+function getPenaltyRate(){
+  let base=1000;
+  if(state.timerSec<15) base=250;
+  else if(state.timerSec<30) base=400;
+  else if(state.timerSec<60) base=700;
+  if(state.strikes>0) base=Math.max(180, base-state.strikes*80);
+  return base;
+}
+
+// ---- Error / Wire cut ----
+function playError(){
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  // Deep buzzer slam
+  [0, 0.18].forEach(d=>{
+    beep(80+Math.random()*20, 0.25, 'sawtooth', 0.35, d);
+  });
+  // High screech
+  beep(2400, 0.12, 'square', 0.15, 0.05);
+  // Noise burst
+  try{
+    const buf=noiseBuffer(ac,0.15), src=ac.createBufferSource();
+    const g=ac.createGain(), filt=ac.createBiquadFilter();
+    src.buffer=buf; filt.type='bandpass'; filt.frequency.value=400; filt.Q.value=1;
+    g.gain.setValueAtTime(0.3, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.15);
+    src.connect(filt); filt.connect(g); g.connect(masterGain); src.start();
+  }catch(e){}
+}
+
+// ---- Wire cut snap ----
+function playWireCut(){
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  try{
+    const buf=noiseBuffer(ac,0.06), src=ac.createBufferSource();
+    const g=ac.createGain(), filt=ac.createBiquadFilter();
+    src.buffer=buf; filt.type='highpass'; filt.frequency.value=3000;
+    g.gain.setValueAtTime(0.25, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.06);
+    src.connect(filt); filt.connect(g); g.connect(masterGain); src.start();
+  }catch(e){}
+}
+
+// ---- Module solved ----
+function playSuccess(){
+  const ac=getAudio(); if(!ac) return;
+  const notes=[523,659,784,1047];
+  notes.forEach((n,i)=>{
+    const delay=i*0.09;
+    beep(n, 0.18, 'sine', 0.22, delay);
+    beep(n*2, 0.1, 'sine', 0.06, delay);
+  });
+}
+
+// ---- Button click ----
+function playClick(){
+  beep(440, 0.05, 'sine', 0.09);
+}
+
+// ---- VICTORY ----
+function playVictory(){
+  const ac=getAudio(); if(!ac) return;
+  stopAllMusic();
+  // Ascending fanfare
+  const melody=[523,587,659,784,880,1047];
+  melody.forEach((n,i)=>{
+    beep(n, 0.2, 'sine', 0.28, i*0.1);
+    beep(n*1.5, 0.15, 'sine', 0.1, i*0.1+0.05);
+  });
+  // Final chord
+  [523,659,784,1047].forEach(n=>{
+    beep(n, 0.6, 'sine', 0.2, 0.7);
+  });
+}
+
+// ---- EXPLOSION — LOUD BOOM ----
+function playExplode(){
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  stopAllMusic();
+  try{
+    const sr=ac.sampleRate;
+    // Layer 1: Sub boom (very low rumble)
+    const subLen=Math.floor(sr*2.5);
+    const subBuf=ac.createBuffer(1,subLen,sr);
+    const subD=subBuf.getChannelData(0);
+    for(let i=0;i<subLen;i++){
+      const t=i/sr;
+      subD[i]=(Math.random()*2-1)*Math.exp(-t*1.8)*Math.sin(2*Math.PI*40*t*Math.exp(-t*3));
+    }
+    const subSrc=ac.createBufferSource(), subG=ac.createGain();
+    const subFilt=ac.createBiquadFilter();
+    subSrc.buffer=subBuf; subFilt.type='lowpass'; subFilt.frequency.value=180;
+    subG.gain.setValueAtTime(0.0, ac.currentTime);
+    subG.gain.linearRampToValueAtTime(1.1, ac.currentTime+0.02);
+    subG.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+2.4);
+    subSrc.connect(subFilt); subFilt.connect(subG); subG.connect(masterGain);
+    subSrc.start();
+
+    // Layer 2: Mid crunch
+    const midLen=Math.floor(sr*1.8);
+    const midBuf=ac.createBuffer(1,midLen,sr);
+    const midD=midBuf.getChannelData(0);
+    for(let i=0;i<midLen;i++){
+      const t=i/sr;
+      midD[i]=(Math.random()*2-1)*Math.exp(-t*2.5)*(1+0.5*Math.sin(2*Math.PI*120*t));
+    }
+    const midSrc=ac.createBufferSource(), midG=ac.createGain();
+    const midFilt=ac.createBiquadFilter();
+    midSrc.buffer=midBuf; midFilt.type='bandpass'; midFilt.frequency.value=350; midFilt.Q.value=0.5;
+    midG.gain.setValueAtTime(0.0, ac.currentTime);
+    midG.gain.linearRampToValueAtTime(0.8, ac.currentTime+0.01);
+    midG.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+1.8);
+    midSrc.connect(midFilt); midFilt.connect(midG); midG.connect(masterGain);
+    midSrc.start();
+
+    // Layer 3: High crack / snap (gives the PUNCH)
+    const crackLen=Math.floor(sr*0.4);
+    const crackBuf=ac.createBuffer(1,crackLen,sr);
+    const crackD=crackBuf.getChannelData(0);
+    for(let i=0;i<crackLen;i++){
+      const t=i/sr;
+      crackD[i]=(Math.random()*2-1)*Math.exp(-t*18);
+    }
+    const crackSrc=ac.createBufferSource(), crackG=ac.createGain();
+    crackSrc.buffer=crackBuf;
+    crackG.gain.setValueAtTime(0.9, ac.currentTime);
+    crackG.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.35);
+    crackSrc.connect(crackG); crackG.connect(masterGain);
+    crackSrc.start();
+
+    // Layer 4: Low sine boom sweep
+    const boomOsc=ac.createOscillator(), boomG=ac.createGain();
+    boomOsc.type='sine';
+    boomOsc.frequency.setValueAtTime(80, ac.currentTime);
+    boomOsc.frequency.exponentialRampToValueAtTime(25, ac.currentTime+1.2);
+    boomG.gain.setValueAtTime(0.0, ac.currentTime);
+    boomG.gain.linearRampToValueAtTime(0.7, ac.currentTime+0.015);
+    boomG.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+1.5);
+    boomOsc.connect(boomG); boomG.connect(masterGain);
+    boomOsc.start(); boomOsc.stop(ac.currentTime+1.6);
+
+    // Layer 5: Ringing tail
+    const ringOsc=ac.createOscillator(), ringG=ac.createGain();
+    ringOsc.type='sine'; ringOsc.frequency.value=220;
+    ringG.gain.setValueAtTime(0.18, ac.currentTime+0.08);
+    ringG.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+2.2);
+    ringOsc.connect(ringG); ringG.connect(masterGain);
+    ringOsc.start(ac.currentTime+0.08); ringOsc.stop(ac.currentTime+2.3);
+
+  }catch(e){}
+}
+
+// ---- BACKGROUND MUSIC ----
+// Procedurally generated dark ambient music: low drone + rhythmic arpeggio + subtle pad
+function startBgMusic(){
+  if(!state.settings.sfx) return;
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  if(_bgPlaying) return;
+  _bgPlaying=true;
+
+  try{
+    const bgGain=ac.createGain();
+    bgGain.gain.value=0.0;
+    bgGain.gain.linearRampToValueAtTime(0.18, ac.currentTime+3.0); // fade in slowly
+    bgGain.connect(masterGain);
+    bgMusicNodes.masterGain=bgGain;
+
+    // --- Drone: two slightly-detuned low oscillators ---
+    const droneFreqs=[55, 55.3, 82.4, 82.7]; // A1 + E2 power chord
+    droneFreqs.forEach((f,i)=>{
+      const o=ac.createOscillator(), g=ac.createGain(), filt=ac.createBiquadFilter();
+      o.type=i<2?'sawtooth':'square';
+      o.frequency.value=f;
+      filt.type='lowpass'; filt.frequency.value=280; filt.Q.value=2;
+      g.gain.value=0.12;
+      o.connect(filt); filt.connect(g); g.connect(bgGain);
+      o.start();
+      bgMusicNodes['drone'+i]=o;
+    });
+
+    // --- LFO tremolo on drone ---
+    const lfo=ac.createOscillator(), lfoG=ac.createGain();
+    lfo.frequency.value=0.3; lfoG.gain.value=0.04;
+    lfo.connect(lfoG);
+    if(bgMusicNodes.drone0) lfoG.connect(bgMusicNodes.drone0.frequency);
+
+    // --- Pad: soft warm chord stabs ---
+    const padNotes=[110,138.6,164.8]; // A2, C#3, E3 — A minor
+    padNotes.forEach((f,i)=>{
+      const o=ac.createOscillator(), g=ac.createGain(), filt=ac.createBiquadFilter();
+      o.type='sine'; o.frequency.value=f;
+      filt.type='lowpass'; filt.frequency.value=600;
+      g.gain.value=0.055;
+      o.connect(filt); filt.connect(g); g.connect(bgGain);
+      o.start();
+      bgMusicNodes['pad'+i]=o;
+    });
+
+    // --- Rhythmic arpeggio: timed beeps that cycle ---
+    const arpNotes=[220, 261.6, 329.6, 261.6, 196, 220, 174.6, 196];
+    let arpIdx=0, arpBpm=90;
+    function arpStep(){
+      if(!_bgPlaying||!state.gameActive) return;
+      if(state.timerSec<30) arpBpm=160;
+      else if(state.timerSec<60) arpBpm=120;
+      else arpBpm=90;
+      if(!state.paused){
+        try{
+          const f=arpNotes[arpIdx%arpNotes.length];
+          const o=ac.createOscillator(), g=ac.createGain(), filt=ac.createBiquadFilter();
+          o.type='square'; o.frequency.value=f;
+          filt.type='bandpass'; filt.frequency.value=f*1.5; filt.Q.value=3;
+          g.gain.setValueAtTime(0.07, ac.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime+0.18);
+          o.connect(filt); filt.connect(g); g.connect(bgGain);
+          o.start(); o.stop(ac.currentTime+0.2);
+        }catch(e){}
+      }
+      arpIdx++;
+      bgMusicNodes.arpTO=setTimeout(arpStep, Math.floor(60000/arpBpm));
+    }
+    bgMusicNodes.arpTO=setTimeout(arpStep, 800);
+
+    // --- Subtle high metallic shimmer ---
+    const shimOsc=ac.createOscillator(), shimG=ac.createGain();
+    shimOsc.type='sine'; shimOsc.frequency.value=3200;
+    shimG.gain.value=0.008;
+    shimOsc.connect(shimG); shimG.connect(bgGain);
+    shimOsc.start();
+    bgMusicNodes.shim=shimOsc;
+
+    lfo.start(); bgMusicNodes.lfo=lfo;
+
+  }catch(e){ _bgPlaying=false; }
+}
+
+function stopBgMusic(){
+  if(!_bgPlaying) return;
+  _bgPlaying=false;
+  const ac=getAudio();
+  try{
+    if(bgMusicNodes.masterGain){
+      bgMusicNodes.masterGain.gain.linearRampToValueAtTime(0, ac.currentTime+0.5);
+    }
+    if(bgMusicNodes.arpTO) clearTimeout(bgMusicNodes.arpTO);
+    setTimeout(()=>{
+      ['drone0','drone1','drone2','drone3','pad0','pad1','pad2','shim','lfo'].forEach(k=>{
+        try{ if(bgMusicNodes[k]) bgMusicNodes[k].stop(); }catch(e){}
+      });
+      bgMusicNodes={};
+    }, 600);
+  }catch(e){ bgMusicNodes={}; }
+}
+
+// ---- 30-SECOND ALARM ----
+// Pulsing dual-tone siren that increases in urgency
+let alarmTimeout=null;
+function start30sAlarm(){
+  if(_alarmPlaying) return;
+  _alarmPlaying=true;
+  const ac=getAudio(); if(!ac||!masterGain) return;
+
+  // Fade bg music down so alarm is prominent
+  if(bgMusicNodes.masterGain){
+    bgMusicNodes.masterGain.gain.cancelScheduledValues(ac.currentTime);
+    bgMusicNodes.masterGain.gain.linearRampToValueAtTime(0.06, ac.currentTime+0.8);
+  }
+
+  try{
+    const alarmGain=ac.createGain();
+    alarmGain.gain.value=0;
+    alarmGain.gain.linearRampToValueAtTime(0.5, ac.currentTime+0.3);
+    alarmGain.connect(masterGain);
+    alarmNodes.masterGain=alarmGain;
+
+    // LFO-driven siren: sweeps between two frequencies
+    const siren1=ac.createOscillator(), s1g=ac.createGain();
+    const siren2=ac.createOscillator(), s2g=ac.createGain();
+    const sirenLFO=ac.createOscillator(), sirenLFOg=ac.createGain();
+
+    siren1.type='sawtooth'; siren1.frequency.value=880;
+    sirenLFOg.gain.value=320;
+    sirenLFO.frequency.value=2.5;
+    sirenLFO.connect(sirenLFOg);
+    sirenLFOg.connect(siren1.frequency);
+
+    siren2.type='square'; siren2.frequency.value=440;
+    s1g.gain.value=0.35; s2g.gain.value=0.12;
+    const siren2LFO=ac.createOscillator(), s2lfoG=ac.createGain();
+    siren2LFO.frequency.value=3.2; s2lfoG.gain.value=180;
+    siren2LFO.connect(s2lfoG); s2lfoG.connect(siren2.frequency);
+
+    // Bandpass to make it more "alarm-like"
+    const bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=900; bp.Q.value=0.8;
+    siren1.connect(s1g); s1g.connect(bp); bp.connect(alarmGain);
+    siren2.connect(s2g); s2g.connect(alarmGain);
+
+    siren1.start(); siren2.start(); sirenLFO.start(); siren2LFO.start();
+    alarmNodes.s1=siren1; alarmNodes.s2=siren2;
+    alarmNodes.lfo1=sirenLFO; alarmNodes.lfo2=siren2LFO;
+
+    // Pulsing gain: cuts in/out rapidly for urgency
+    let pulsePhase=0;
+    function pulseAlarm(){
+      if(!_alarmPlaying) return;
+      if(!state.paused&&state.gameActive){
+        const vol=pulsePhase%2===0?0.55:0.15;
+        const rate=state.timerSec<15?120:180;
+        try{
+          alarmGain.gain.setTargetAtTime(vol, ac.currentTime, 0.04);
+        }catch(e){}
+        pulsePhase++;
+        const nextRate=state.timerSec<15?100:150;
+        alarmNodes.pulseTO=setTimeout(pulseAlarm, nextRate);
+      } else {
+        alarmNodes.pulseTO=setTimeout(pulseAlarm, 100);
+      }
+    }
+    alarmNodes.pulseTO=setTimeout(pulseAlarm, 0);
+
+    // Escalating beeps layered on top
+    let beepI=0;
+    function alarmBeep(){
+      if(!_alarmPlaying) return;
+      if(!state.paused){
+        beep(1760, 0.06, 'square', 0.18);
+        beep(2093, 0.06, 'square', 0.12, 0.07);
+      }
+      beepI++;
+      const interval=state.timerSec<15?200:state.timerSec<20?280:380;
+      alarmNodes.beepTO=setTimeout(alarmBeep, interval);
+    }
+    alarmNodes.beepTO=setTimeout(alarmBeep, 200);
+
+  }catch(e){ _alarmPlaying=false; }
+}
+
+function stopAlarm(){
+  if(!_alarmPlaying) return;
+  _alarmPlaying=false;
+  const ac=getAudio();
+  try{
+    if(alarmNodes.pulseTO) clearTimeout(alarmNodes.pulseTO);
+    if(alarmNodes.beepTO) clearTimeout(alarmNodes.beepTO);
+    if(alarmNodes.masterGain){
+      alarmNodes.masterGain.gain.linearRampToValueAtTime(0, ac.currentTime+0.3);
+    }
+    setTimeout(()=>{
+      ['s1','s2','lfo1','lfo2'].forEach(k=>{
+        try{ if(alarmNodes[k]) alarmNodes[k].stop(); }catch(e){}
+      });
+      alarmNodes={};
+    }, 400);
+  }catch(e){ alarmNodes={}; }
+}
+
+function stopAllMusic(){
+  stopBgMusic();
+  stopAlarm();
+}
+
+// ---- SFX helpers ----
+function playError(){
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  try{
+    // Deep strike buzz
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type='sawtooth'; o.frequency.setValueAtTime(180, ac.currentTime);
+    o.frequency.exponentialRampToValueAtTime(60, ac.currentTime+0.3);
+    g.gain.setValueAtTime(0.42, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.32);
+    o.connect(g); g.connect(masterGain); o.start(); o.stop(ac.currentTime+0.35);
+    // High screech
+    beep(2800, 0.1, 'square', 0.14, 0.02);
+    // Noise burst
+    const buf=noiseBuffer(ac,0.18), src=ac.createBufferSource();
+    const ng=ac.createGain(), nf=ac.createBiquadFilter();
+    src.buffer=buf; nf.type='bandpass'; nf.frequency.value=500; nf.Q.value=1.2;
+    ng.gain.setValueAtTime(0.28, ac.currentTime);
+    ng.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.18);
+    src.connect(nf); nf.connect(ng); ng.connect(masterGain); src.start();
+  }catch(e){}
+}
+
+function playWireCut(){
+  const ac=getAudio(); if(!ac||!masterGain) return;
+  try{
+    const buf=noiseBuffer(ac,0.07), src=ac.createBufferSource();
+    const g=ac.createGain(), f=ac.createBiquadFilter();
+    src.buffer=buf; f.type='highpass'; f.frequency.value=2800;
+    g.gain.setValueAtTime(0.3, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+0.07);
+    src.connect(f); f.connect(g); g.connect(masterGain); src.start();
+  }catch(e){}
+}
+
+function playSuccess(){
+  const ac=getAudio(); if(!ac) return;
+  const notes=[523,659,784,1047];
+  notes.forEach((n,i)=>{
+    beep(n, 0.2, 'sine', 0.24, i*0.09);
+    beep(n*2, 0.1, 'sine', 0.07, i*0.09+0.04);
+  });
+}
+
+function playClick(){
+  beep(500, 0.04, 'sine', 0.08);
+}
+
+// ===================== SAVE / SCORES =====================
+function loadScores(){
+  try{ return JSON.parse(localStorage.getItem('defuse_scores')||'{}'); }catch(e){ return {}; }
+}
+function saveScore(diff,timeLeft,level,mistakes){
+  const s=loadScores();
+  if(!s[diff]) s[diff]=[];
+  s[diff].push({time:timeLeft,level,mistakes,date:Date.now(),survived:Math.floor(state.startTime?(Date.now()-state.startTime)/1000:0)});
+  s[diff].sort((a,b)=>b.time-a.time);
+  s[diff]=s[diff].slice(0,10);
+  try{localStorage.setItem('defuse_scores',JSON.stringify(s));}catch(e){}
+}
+function loadSettings(){
+  try{ const s=JSON.parse(localStorage.getItem('defuse_settings')); if(s) state.settings=s; }catch(e){}
+}
+function saveSettings(){
+  try{localStorage.setItem('defuse_settings',JSON.stringify(state.settings));}catch(e){}
+}
+
+// ===================== ROOM SYSTEM =====================
+function genCode(){
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:6},()=>c[Math.floor(Math.random()*c.length)]).join('');
+}
+// Simple local two-player (same device, split screen) OR share-link flow
+// We simulate P2 joining the same room by storing in sessionStorage
+function createRoom(){
+  state.roomCode=genCode();
+  try{ sessionStorage.setItem('defuse_room',JSON.stringify({code:state.roomCode,diff:state.diff,host:true})); }catch(e){}
+  showScreen('s-lobby');
+  $('room-code-display').textContent=state.roomCode;
+  $('diff-label').textContent=DIFFS[state.diff].name;
+  updateLobby();
+}
+function joinRoom(){
+  const code=$('join-code').value.toUpperCase().trim();
+  if(code.length!==6){$('join-err').textContent='INVALID CODE';return;}
+  state.roomCode=code;
+  // For local same-device play, we just start the game
+  $('join-err').textContent='';
+  showScreen('s-lobby');
+  $('room-code-display').textContent=state.roomCode;
+  // Simulate P2 joined
+  $('p2-dot').className='player-dot amber';
+  $('p2-name').textContent='PLAYER 2';
+  updateLobby();
+}
+function updateLobby(){
+  const r=state.role;
+  if(r){
+    $('p1-role').textContent=r.toUpperCase();
+    $('p1-badge').innerHTML=`<span class="role-badge ${r}">${r}</span>`;
+  }
+}
+function copyRoomCode(){
+  try{ navigator.clipboard.writeText(state.roomCode); }catch(e){}
+  beep(440,.1,'sine',.1);
+}
+
+// ===================== ROLE =====================
+let _selectedRole='';
+function selectRole(role){
+  _selectedRole=role;
+  $('role-defuser').classList.toggle('selected',role==='defuser');
+  $('role-reader').classList.toggle('selected',role==='reader');
+  $('confirm-role-btn').disabled=false;
+}
+function confirmRole(){
+  state.role=_selectedRole;
+  state.p2role=_selectedRole==='defuser'?'reader':'defuser';
+  showScreen('s-lobby');
+  updateLobby();
+  $('ready-btn').disabled=false;
+}
+
+// ===================== READY / START =====================
+function toggleReady(){
+  state.ready=!state.ready;
+  $('ready-btn').textContent=state.ready?'UNREADY':'READY';
+  $('ready-btn').className=state.ready?'btn amber':'btn';
+  // In single-device mode both players share screen, so show start if ready
+  if(state.ready) $('start-btn').style.display='';
+}
+function startGame(){
+  if(!state.role){ $('lobby-msg').textContent='SELECT A ROLE FIRST'; return; }
+  state.level=1;
+  state.streak=0;
+  beep(440,.05,'sine',.1);
+  beginLevel();
+}
+
+// ===================== LEVEL / BOMB =====================
+function beginLevel(){
+  const dcfg=DIFFS[state.diff];
+  state.strikes=0;
+  state.timerSec=dcfg.time;
+  state.paused=false;
+  state.gameActive=true;
+  state.startTime=Date.now();
+  state.solved=[];
+  renderStrikes();
+  state.bomb=BombGen.generate(state.level,state.diff);
+  state.manual=ManualGen.generate(state.bomb,state.diff);
+  state.modules=state.bomb.modules.map(m=>({...m,solved:false,failed:false}));
+  _30sTriggered=false;
+  showScreen('s-game');
+  renderBombCanvas();
+  renderDefuserModules();
+  renderManual();
+  renderHUD();
+  startTimer();
+  startTicking();
+  // Start background music (slight delay so audio context is ready)
+  setTimeout(()=>startBgMusic(), 400);
+  addChat('SYSTEM',`Mission ${state.level} started. Defuse the bomb!`);
+  // For extreme: flicker
+  if(state.diff==='extreme') scheduleFlicker();
+}
+
+// ===================== TIMER =====================
+function startTimer(){
+  if(state.timerInterval) clearInterval(state.timerInterval);
+  state.timerInterval=setInterval(()=>{
+    if(state.paused||!state.gameActive) return;
+    state.timerSec--;
+    if(state.timerSec<=0){ triggerExplosion('TIME OUT'); return; }
+    renderHUD();
+    // Restart ticking at new rate
+    startTicking();
+    if(state.diff==='extreme'&&state.timerSec%7===0) shakeScreen();
+  },1000);
+}
+function applyPenalty(){
+  const p=DIFFS[state.diff].penalty;
+  state.timerSec=Math.max(5,state.timerSec-p);
+  renderHUD();
+}
+
+// ===================== SCREEN EFFECTS =====================
+function shakeScreen(){
+  if(!state.settings.shake) return;
+  document.body.classList.remove('shake');
+  void document.body.offsetWidth;
+  document.body.classList.add('shake');
+  setTimeout(()=>document.body.classList.remove('shake'),400);
+}
+function flashRed(){
+  if(!state.settings.flash) return;
+  document.body.classList.remove('flash-red');
+  void document.body.offsetWidth;
+  document.body.classList.add('flash-red');
+  setTimeout(()=>document.body.classList.remove('flash-red'),500);
+}
+let flickerTO=null;
+function scheduleFlicker(){
+  if(!state.gameActive) return;
+  flickerTO=setTimeout(()=>{
+    flashRed();
+    scheduleFlicker();
+  },1500+Math.random()*3000);
+}
+
+// ===================== HUD =====================
+function renderHUD(){
+  const s=state.timerSec;
+  const mm=String(Math.floor(s/60)).padStart(2,'0');
+  const ss=String(s%60).padStart(2,'0');
+  const td=$('timer-display');
+  td.textContent=mm+':'+ss;
+  td.className='';
+  if(s<15) td.className='crit';
+  else if(s<30) td.className='warn';
+  const rt=document.getElementById('reader-timer');
+  if(rt) rt.textContent=mm+':'+ss;
+  $('level-display').textContent='LVL '+state.level;
+  $('hud-diff').textContent=DIFFS[state.diff].name;
+}
+function renderStrikes(){
+  const dots=document.querySelectorAll('.strike-dot');
+  dots.forEach((d,i)=>{ d.className='strike-dot'+(i<state.strikes?' hit':''); });
+}
+
+// ===================== BOMB CANVAS =====================
+function renderBombCanvas(){
+  const canvas=$('bomb-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  // Bomb body
+  ctx.fillStyle='#1a1e28';
+  ctx.strokeStyle='#2a3040';
+  ctx.lineWidth=2;
+  roundRect(ctx,W/2-160,H/2-100,320,200,16,true,true);
+  // Serial number
+  ctx.fillStyle='#556';
+  ctx.font='11px Courier New';
+  ctx.textAlign='left';
+  ctx.fillText('SN: '+state.bomb.serial,W/2-150,H/2-72);
+  // LED indicators
+  const leds=state.bomb.leds;
+  for(let i=0;i<leds.length;i++){
+    const x=W/2-100+i*28, y=H/2-55;
+    ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2);
+    ctx.fillStyle=leds[i]?'#00ff88':'#1a2030';
+    if(leds[i]) ctx.shadowColor='#00ff88', ctx.shadowBlur=8;
+    ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.strokeStyle='#334'; ctx.lineWidth=1; ctx.stroke();
+  }
+  // Battery indicator
+  ctx.fillStyle='#334';
+  ctx.fillRect(W/2+100,H/2-70,36,20);
+  ctx.fillStyle=state.bomb.batteries>1?'#ffaa00':'#556';
+  ctx.fillRect(W/2+102,H/2-68,14*state.bomb.batteries,16);
+  ctx.fillStyle='#556';
+  ctx.font='9px Courier New';
+  ctx.fillText('BAT×'+state.bomb.batteries,W/2+100,H/2-75);
+  // Ports
+  ctx.font='9px Courier New';
+  ctx.fillStyle='#667';
+  ctx.fillText('PORTS: '+state.bomb.ports.join('·'),W/2-150,H/2+85);
+  // Module count
+  ctx.fillStyle='#445';
+  ctx.fillText('MODULES: '+state.modules.length,W/2+20,H/2+85);
+  // Solved indicator
+  const solvedCount=state.modules.filter(m=>m.solved).length;
+  ctx.fillStyle='#00ff88';
+  ctx.fillText(`SOLVED: ${solvedCount}/${state.modules.length}`,W/2-150,H/2+100);
+}
+function roundRect(ctx,x,y,w,h,r,fill,stroke){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  if(stroke) ctx.stroke();
+}
+
+// ===================== MODULE RENDERER =====================
+function renderDefuserModules(){
+  const el=$('defuser-modules');
+  el.innerHTML='';
+  state.modules.forEach((m,idx)=>{
+    const div=document.createElement('div');
+    div.className='module';
+    div.id='mod-'+idx;
+    if(m.solved){ div.innerHTML=`<div class="module-label">${m.type.toUpperCase()}</div><div class="module-status solved">SOLVED</div><div style="color:var(--green);font-size:12px;letter-spacing:2px">✓ DISARMED</div>`; }
+    else if(m.failed){ div.innerHTML=`<div class="module-label">${m.type.toUpperCase()}</div><div class="module-status failed">FAILED</div>`; }
+    else{
+      div.innerHTML='<div class="module-status active">ACTIVE</div>'+buildModuleHTML(m,idx);
+    }
+    el.appendChild(div);
+  });
+}
+function buildModuleHTML(m,idx){
+  switch(m.type){
+    case 'wire': return buildWireHTML(m,idx);
+    case 'button': return buildButtonHTML(m,idx);
+    case 'keypad': return buildKeypadHTML(m,idx);
+    case 'memory': return buildMemoryHTML(m,idx);
+    case 'switch': return buildSwitchHTML(m,idx);
+    case 'symbol': return buildSymbolHTML(m,idx);
+    case 'morse': return buildMorseHTML(m,idx);
+    default: return `<div class="module-label">${m.type.toUpperCase()}</div>`;
+  }
+}
+
+// WIRE
+function buildWireHTML(m,idx){
+  let h=`<div class="module-label">WIRE CUTTING MODULE</div><div class="wire-container">`;
+  m.wires.forEach((w,wi)=>{
+    const cut=m.cutState&&m.cutState[wi];
+    h+=`<div class="wire-item${cut?' cut':''}" onclick="G.cutWire(${idx},${wi})">
+      <span class="wire-label" style="color:${WIRE_CSS[w]||'#aaa'}">${w.toUpperCase()}</span>
+      <div class="wire-line" style="background:${WIRE_CSS[w]||'#aaa'};color:${WIRE_CSS[w]||'#aaa'}"></div>
+      <span style="font-size:10px;color:var(--dim)">${cut?'CUT':'✂'}</span>
+    </div>`;
+  });
+  return h+'</div>';
+}
+function cutWire(modIdx,wireIdx){
+  const m=state.modules[modIdx]; if(!m||m.solved) return;
+  if(!m.cutState) m.cutState=Array(m.wires.length).fill(false);
+  if(m.cutState[wireIdx]) return;
+  m.cutState[wireIdx]=true;
+  beep(300,.08,'sawtooth',.12);
+  if(wireIdx===m.correctWire){
+    solveModule(modIdx);
+  } else {
+    registerStrike(`Wrong wire cut (${m.wires[wireIdx]})`);
+  }
+  refreshModule(modIdx);
+}
+
+// BUTTON
+function buildButtonHTML(m,idx){
+  const col=m.btnColor||'red';
+  const css=WIRE_CSS[col]||'#ff2233';
+  return `<div class="module-label">BUTTON MODULE</div>
+  <div class="big-btn-wrap">
+    <div style="font-size:11px;color:var(--dim);margin-bottom:4px">Label: <b style="color:${css}">${(m.btnLabel||'HOLD').toUpperCase()}</b></div>
+    <button class="big-btn" style="background:${css}22;border-color:${css};color:${css}"
+      id="bigbtn-${idx}"
+      onmousedown="G.btnPress(${idx})" onmouseup="G.btnRelease(${idx})"
+      ontouchstart="G.btnPress(${idx})" ontouchend="G.btnRelease(${idx})">
+      ${(m.btnLabel||'HOLD').toUpperCase()}
+    </button>
+    <div class="btn-hint" id="btn-hint-${idx}">HOLD or TAP — ask your manual reader</div>
+  </div>`;
+}
+let btnHoldStart=0;
+function btnPress(idx){
+  btnHoldStart=Date.now();
+  beep(200,.05,'sine',.1);
+}
+function btnRelease(idx){
+  const held=(Date.now()-btnHoldStart)>600;
+  const m=state.modules[idx]; if(!m||m.solved) return;
+  const correct= held===m.btnHold;
+  if(correct) solveModule(idx);
+  else registerStrike('Wrong button action');
+  refreshModule(idx);
+}
+
+// KEYPAD
+function buildKeypadHTML(m,idx){
+  return `<div class="module-label">KEYPAD MODULE</div>
+  <div class="keypad-display" id="kpad-disp-${idx}">${m.kpadInput||''}</div>
+  <div class="keypad-grid">
+    ${[1,2,3,'CLR',4,5,6,'ENT',7,8,9,'*',0,'#'].map(k=>
+      `<button class="kpad-btn" onclick="G.kpadPress(${idx},'${k}')">${k}</button>`
+    ).join('')}
+  </div>`;
+}
+function kpadPress(idx,k){
+  const m=state.modules[idx]; if(!m||m.solved) return;
+  if(!m.kpadInput) m.kpadInput='';
+  beep(400+Math.random()*200,.05,'sine',.08);
+  if(k==='CLR'){ m.kpadInput=''; }
+  else if(k==='ENT'){
+    if(m.kpadInput===String(m.kpadCode)){
+      solveModule(idx);
+    } else {
+      registerStrike(`Wrong code: ${m.kpadInput}`);
+      m.kpadInput='';
+    }
+  } else {
+    if(m.kpadInput.length<6) m.kpadInput+=String(k);
+  }
+  const disp=document.getElementById('kpad-disp-'+idx);
+  if(disp) disp.textContent=m.kpadInput;
+  if(m.solved) refreshModule(idx);
+}
+
+// MEMORY
+function buildMemoryHTML(m,idx){
+  const stage=m.memStage||0;
+  const total=m.memSeq.length;
+  let seqHTML='<div class="mem-display">';
+  for(let i=0;i<total;i++){
+    const lit=i===stage;
+    seqHTML+=`<div class="mem-light${lit?' lit':''}">${m.memSeq[i]}</div>`;
+  }
+  seqHTML+='</div>';
+  const opts=m.memOptions[stage]||[];
+  let btnsHTML='<div class="mem-display">';
+  opts.forEach((o,oi)=>{
+    btnsHTML+=`<div class="mem-light" onclick="G.memPress(${idx},${oi})" style="cursor:pointer">${o}</div>`;
+  });
+  btnsHTML+='</div>';
+  return `<div class="module-label">MEMORY MODULE</div>
+  <div class="mem-seq">STAGE ${stage+1}/${total} — Match the sequence</div>
+  ${seqHTML}${btnsHTML}`;
+}
+function memPress(idx,optIdx){
+  const m=state.modules[idx]; if(!m||m.solved) return;
+  const stage=m.memStage||0;
+  const correct=m.memCorrect[stage];
+  beep(550+optIdx*80,.07,'sine',.12);
+  if(optIdx===correct){
+    m.memStage=(stage+1);
+    if(m.memStage>=m.memSeq.length) solveModule(idx);
+    else refreshModule(idx);
+  } else {
+    m.memStage=0;
+    registerStrike('Wrong memory sequence');
+    refreshModule(idx);
+  }
+}
+
+// SWITCH
+function buildSwitchHTML(m,idx){
+  const state2=m.switchState||Array(m.switchCount).fill(false);
+  let h=`<div class="module-label">SWITCH MODULE</div><div class="switch-row">`;
+  for(let i=0;i<m.switchCount;i++){
+    h+=`<div class="switch-item" onclick="G.toggleSwitch(${idx},${i})">
+      <div class="switch-body${state2[i]?' on':''}"><div class="switch-knob"></div></div>
+      <div class="switch-num">${i+1}</div>
+    </div>`;
+  }
+  h+=`</div><div style="font-size:10px;color:var(--dim);text-align:center">Set switches to match manual</div>`;
+  return h;
+}
+function toggleSwitch(idx,si){
+  const m=state.modules[idx]; if(!m||m.solved) return;
+  if(!m.switchState) m.switchState=Array(m.switchCount).fill(false);
+  m.switchState[si]=!m.switchState[si];
+  beep(300,.05,'square',.1);
+  // Check solution
+  const match=m.switchState.every((v,i)=>v===m.switchSolution[i]);
+  if(match) solveModule(idx);
+  refreshModule(idx);
+}
+
+// SYMBOL
+function buildSymbolHTML(m,idx){
+  let h=`<div class="module-label">SYMBOL MODULE</div>
+  <div style="font-size:10px;color:var(--dim);margin-bottom:8px">Select symbols in correct order. Consult manual.</div>
+  <div class="symbol-grid">`;
+  m.symbols.forEach((s,si)=>{
+    const sel=m.symSelected&&m.symSelected.includes(si);
+    h+=`<div class="sym-btn${sel?' selected':''}" onclick="G.symPress(${idx},${si})">${s}</div>`;
+  });
+  h+=`</div>`;
+  if(m.symSelected&&m.symSelected.length>0){
+    h+=`<div style="font-size:10px;color:var(--text2)">Selected: ${m.symSelected.map(i=>m.symbols[i]).join(' → ')}</div>`;
+  }
+  return h;
+}
+function symPress(idx,si){
+  const m=state.modules[idx]; if(!m||m.solved) return;
+  if(!m.symSelected) m.symSelected=[];
+  if(m.symSelected.includes(si)) return;
+  beep(600+si*40,.06,'sine',.1);
+  m.symSelected.push(si);
+  // Check if sequence matches
+  const expected=m.symOrder;
+  const sel=m.symSelected;
+  if(sel.length<=expected.length){
+    for(let i=0;i<sel.length;i++){
+      if(sel[i]!==expected[i]){
+        registerStrike('Wrong symbol order');
+        m.symSelected=[];
+        refreshModule(idx);
+        return;
+      }
+    }
+    if(sel.length===expected.length) solveModule(idx);
+    else refreshModule(idx);
+  }
+}
+
+// MORSE
+function buildMorseHTML(m,idx){
+  return `<div class="module-label">MORSE CODE MODULE</div>
+  <div class="morse-light" id="morse-light-${idx}"></div>
+  <div class="morse-display" id="morse-disp-${idx}">${m.morseDisplay||'...'}</div>
+  <div style="font-size:10px;color:var(--dim);margin-bottom:8px">Enter the decoded word:</div>
+  <div style="display:flex;gap:8px">
+    <input id="morse-input-${idx}" style="flex:1;font-size:13px;letter-spacing:2px;text-transform:uppercase" placeholder="WORD" maxlength="6">
+    <button class="btn" style="padding:8px 14px;font-size:11px" onclick="G.morseSubmit(${idx})">SUBMIT</button>
+  </div>`;
+}
+function morseSubmit(idx){
+  const m=state.modules[idx]; if(!m||m.solved) return;
+  const inp=document.getElementById('morse-input-'+idx);
+  const val=inp?inp.value.toUpperCase().trim():'';
+  if(val===m.morseWord) solveModule(idx);
+  else { registerStrike('Wrong morse word: '+val); if(inp) inp.value=''; }
+  refreshModule(idx);
+}
+
+// ===================== MODULE SOLVE =====================
+function solveModule(idx){
+  const m=state.modules[idx];
+  m.solved=true;
+  state.solved.push(idx);
+  playSuccess();
+  refreshModule(idx);
+  renderBombCanvas();
+  checkWin();
+}
+function refreshModule(idx){
+  const el=document.getElementById('mod-'+idx);
+  if(!el) return;
+  const m=state.modules[idx];
+  if(m.solved){
+    el.innerHTML=`<div class="module-label">${m.type.toUpperCase()}</div><div class="module-status solved">SOLVED</div><div style="color:var(--green);font-size:12px;letter-spacing:2px;margin-top:8px">✓ DISARMED</div>`;
+  } else {
+    el.innerHTML='<div class="module-status active">ACTIVE</div>'+buildModuleHTML(m,idx);
+    // Restart morse if needed
+    if(m.type==='morse') startMorse(idx);
+  }
+}
+function checkWin(){
+  const unsolved=state.modules.filter(m=>!m.solved);
+  if(unsolved.length===0) triggerWin();
+}
+
+// ===================== STRIKE =====================
+function registerStrike(reason){
+  state.strikes++;
+  renderStrikes();
+  applyPenalty();
+  playError();
+  shakeScreen();
+  flashRed();
+  addChat('SYSTEM','⚠ STRIKE '+state.strikes+'/3 — '+reason);
+  if(state.strikes>=3) triggerExplosion(reason);
+}
+
+// ===================== WIN / LOSE =====================
+function triggerWin(){
+  state.gameActive=false;
+  clearInterval(state.timerInterval);
+  clearInterval(state.tickInterval);
+  if(flickerTO) clearTimeout(flickerTO);
+  state.streak++;
+  playVictory();
+  saveScore(state.diff,state.timerSec,state.level,state.strikes);
+  const timeLeft=state.timerSec;
+  const mm=String(Math.floor(timeLeft/60)).padStart(2,'0');
+  const ss=String(timeLeft%60).padStart(2,'0');
+  const survived=Math.floor((Date.now()-state.startTime)/1000);
+  showOverlay('s-gameover');
+  $('result-title').className='result-title win';
+  $('result-title').textContent='DEFUSED!';
+  $('result-msg').textContent='Mission '+state.level+' complete. The bomb has been defused!';
+  $('stats-grid').innerHTML=`
+    <div class="stat-box"><div class="stat-val">${mm}:${ss}</div><div class="stat-label">TIME LEFT</div></div>
+    <div class="stat-box"><div class="stat-val">${state.strikes}</div><div class="stat-label">STRIKES</div></div>
+    <div class="stat-box"><div class="stat-val">${survived}s</div><div class="stat-label">SURVIVED</div></div>
+    <div class="stat-box"><div class="stat-val">${state.streak}</div><div class="stat-label">STREAK</div></div>
+  `;
+  document.querySelector('#s-gameover .col button.btn.amber').textContent='NEXT LEVEL';
+}
+function triggerExplosion(reason){
+  state.gameActive=false;
+  clearInterval(state.timerInterval);
+  clearInterval(state.tickInterval);
+  if(flickerTO) clearTimeout(flickerTO);
+  playExplode();
+  shakeScreen(); shakeScreen();
+  showOverlay('s-gameover');
+  $('result-title').className='result-title lose';
+  $('result-title').textContent='💥 BOOM';
+  $('result-msg').textContent=reason||'The bomb exploded.';
+  const survived=Math.floor((Date.now()-state.startTime)/1000);
+  $('stats-grid').innerHTML=`
+    <div class="stat-box"><div class="stat-val">${state.level}</div><div class="stat-label">LEVEL</div></div>
+    <div class="stat-box"><div class="stat-val">${state.strikes}</div><div class="stat-label">STRIKES</div></div>
+    <div class="stat-box"><div class="stat-val">${survived}s</div><div class="stat-label">SURVIVED</div></div>
+    <div class="stat-box"><div class="stat-val">${state.streak}</div><div class="stat-label">STREAK</div></div>
+  `;
+  runExplosion();
+  document.querySelector('#s-gameover .col button.btn.amber').textContent='TRY AGAIN';
+}
+function runExplosion(){
+  const cv=document.getElementById('explosion-canvas');
+  cv.style.display='block';
+  cv.width=window.innerWidth; cv.height=window.innerHeight;
+  const ctx=cv.getContext('2d');
+  const parts=[];
+  for(let i=0;i<80;i++){
+    const a=Math.random()*Math.PI*2, sp=2+Math.random()*8;
+    parts.push({x:window.innerWidth/2,y:window.innerHeight/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,col:`hsl(${Math.random()*40},100%,${40+Math.random()*30}%)`});
+  }
+  let frame=0;
+  function tick(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    for(let i=parts.length-1;i>=0;i--){
+      const p=parts[i];
+      p.x+=p.vx; p.y+=p.vy; p.vy+=.15; p.life-=.02;
+      if(p.life<=0){parts.splice(i,1);continue;}
+      ctx.globalAlpha=p.life;
+      ctx.fillStyle=p.col;
+      ctx.fillRect(p.x,p.y,4,4);
+    }
+    ctx.globalAlpha=1;
+    if(parts.length>0&&frame<120) requestAnimationFrame(tick);
+    else cv.style.display='none';
+    frame++;
+  }
+  requestAnimationFrame(tick);
+}
+
+// ===================== GAME CONTROLS =====================
+function pauseGame(){
+  state.paused=true;
+  showOverlay('s-pause');
+  if(state.tickInterval) clearInterval(state.tickInterval);
+}
+function resumeGame(){
+  state.paused=false;
+  hideOverlay('s-pause');
+  startTicking();
+}
+function quitGame(){
+  state.gameActive=false;
+  clearInterval(state.timerInterval);
+  clearInterval(state.tickInterval);
+  hideOverlay('s-pause');
+  showScreen('s-menu');
+}
+function restartGame(){
+  hideOverlay('s-gameover');
+  // If win, advance level
+  if($('result-title').textContent==='DEFUSED!') state.level=Math.min(100,state.level+1);
+  else state.streak=0;
+  beginLevel();
+}
+
+// ===================== MORSE ANIMATION =====================
+function startMorse(idx){
+  const m=state.modules[idx]; if(!m||m.type!=='morse') return;
+  if(state.morseInterval) clearInterval(state.morseInterval);
+  const pattern=m.morsePattern;
+  let pos=0, lit=false;
+  const light=document.getElementById('morse-light-'+idx);
+  const disp=document.getElementById('morse-disp-'+idx);
+  if(!light) return;
+  state.morseInterval=setInterval(()=>{
+    if(!state.gameActive||state.paused) return;
+    if(pos>=pattern.length){ pos=0; return; }
+    const c=pattern[pos];
+    if(c==='.'){light.className='morse-light lit';setTimeout(()=>light.className='morse-light',200);}
+    else if(c==='-'){light.className='morse-light lit';setTimeout(()=>light.className='morse-light',500);}
+    else{light.className='morse-light';}
+    pos++;
+  },280);
+}
+
+// ===================== MANUAL RENDERER =====================
+function renderManual(){
+  const el=$('manual-scroll');
+  el.innerHTML='';
+  const man=state.manual;
+  if(!man) return;
+  el.innerHTML=man.html;
+  // Start morse for any morse modules
+  state.modules.forEach((m,idx)=>{ if(m.type==='morse') startMorse(idx); });
+}
+
+// ===================== CHAT =====================
+function addChat(who,msg){
+  state.chat.push({who,msg});
+  const log=$('chat-log');
+  const div=document.createElement('div');
+  div.className='chat-msg';
+  const p2=(who==='P2'||who==='READER');
+  div.innerHTML=`<span class="who${p2?' p2':''}">[${who}]</span>${msg}`;
+  log.appendChild(div);
+  log.scrollTop=log.scrollHeight;
+  if(state.chat.length>60) state.chat.shift();
+}
+function sendChat(){
+  const inp=$('chat-input');
+  const msg=inp.value.trim(); if(!msg) return;
+  inp.value='';
+  const who=state.role==='defuser'?'DEFUSER':'READER';
+  addChat(who,msg);
+  beep(440,.04,'sine',.06);
+}
+
+// ===================== HIGH SCORES =====================
+function renderScores(){
+  const scores=loadScores();
+  const el=$('scores-content');
+  let html='';
+  Object.entries(DIFFS).forEach(([dk,dv])=>{
+    const arr=scores[dk]||[];
+    html+=`<div style="margin-bottom:20px"><h3 style="color:${dk==='easy'?'var(--green)':dk==='medium'?'var(--amber)':dk==='hard'?'#ff6644':'var(--red)'};">${dv.name}</h3>`;
+    if(arr.length===0){ html+=`<p style="font-size:11px;color:var(--dim)">No scores yet.</p>`; }
+    else{
+      html+=`<table class="hs-table"><tr><th>#</th><th>LEVEL</th><th>TIME LEFT</th><th>MISTAKES</th></tr>`;
+      arr.forEach((s,i)=>{
+        const mm=String(Math.floor(s.time/60)).padStart(2,'0'), ss2=String(s.time%60).padStart(2,'0');
+        html+=`<tr><td class="hs-rank">${i+1}</td><td>${s.level}</td><td>${mm}:${ss2}</td><td>${s.mistakes}</td></tr>`;
+      });
+      html+=`</table>`;
+    }
+    html+=`</div>`;
+  });
+  el.innerHTML=html;
+}
+
+// ===================== SETTINGS =====================
+function toggleSetting(key,el){
+  state.settings[key]=!state.settings[key];
+  el.className='toggle'+(state.settings[key]?' on':'');
+  saveSettings();
+}
+
+// ===================== SCREEN MANAGEMENT =====================
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById(id);
+  if(el){ el.classList.add('active'); state.screen=id; }
+  if(id==='s-scores') renderScores();
+  // Sync settings toggles
+  if(id==='s-settings'){
+    ['sfx','tick','shake','flash'].forEach(k=>{
+      const t=document.getElementById('tog-'+k);
+      if(t) t.className='toggle'+(state.settings[k]?' on':'');
+    });
+  }
+}
+function showOverlay(id){
+  const el=document.getElementById(id);
+  if(el) el.classList.add('active');
+}
+function hideOverlay(id){
+  const el=document.getElementById(id);
+  if(el) el.classList.remove('active');
+}
+
+// ===================== DIFF =====================
+function selectDiff(el){
+  document.querySelectorAll('.diff-card').forEach(d=>d.classList.remove('selected'));
+  el.classList.add('selected');
+  state.diff=el.dataset.diff;
+}
+
+// ===================== HELPERS =====================
+function $(id){ return document.getElementById(id); }
+function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=rnd(0,i);[a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+// ===================== BOMB GENERATOR =====================
+const BombGen = {
+  generate(level,diff){
+    const dcfg=DIFFS[diff];
+    const numMods=dcfg.modules+Math.min(Math.floor(level/10),3);
+    const serial=BombGen.genSerial();
+    const leds=[...Array(4)].map(()=>Math.random()>.5);
+    const batteries=rnd(1,3);
+    const ports=shuffle(['DVI','PS2','SER','RJ45','PAR','STEREO']).slice(0,rnd(1,3));
+    const moduleTypes=['wire','button','keypad','memory','switch','symbol'];
+    if(dcfg.morse) moduleTypes.push('morse');
+    const mods=[];
+    // Always start with wire module
+    mods.push(BombGen.genModule('wire',serial,leds,batteries,ports,diff));
+    for(let i=1;i<numMods;i++){
+      const type=pick(moduleTypes);
+      mods.push(BombGen.genModule(type,serial,leds,batteries,ports,diff));
+    }
+    return {serial,leds,batteries,ports,modules:mods,level,diff};
+  },
+  genSerial(){
+    const chars='ABCDEFGHJKLMNPQRSTUVWXYZ0123456789';
+    return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+  },
+  genModule(type,serial,leds,batteries,ports,diff){
+    switch(type){
+      case 'wire': return BombGen.genWire(serial,leds,batteries,diff);
+      case 'button': return BombGen.genButton(serial,leds,batteries,diff);
+      case 'keypad': return BombGen.genKeypad(diff);
+      case 'memory': return BombGen.genMemory(diff);
+      case 'switch': return BombGen.genSwitch(diff);
+      case 'symbol': return BombGen.genSymbol(diff);
+      case 'morse': return BombGen.genMorse();
+      default: return {type:'wire',...BombGen.genWire(serial,leds,batteries,diff)};
+    }
+  },
+  genWire(serial,leds,batteries,diff){
+    const hardness=diff==='extreme'?7:diff==='hard'?6:diff==='medium'?5:4;
+    const count=rnd(3,hardness);
+    const colors=shuffle(WIRE_COLORS).slice(0,count);
+    // Determine correct wire based on pseudo-rules
+    let correct=0;
+    const lastDigit=parseInt(serial[serial.length-1])||0;
+    const hasRed=colors.includes('red');
+    const hasBlue=colors.includes('blue');
+    const redCount=colors.filter(c=>c==='red').length;
+    if(count===3){
+      if(!hasRed) correct=rnd(1,2);
+      else if(colors[colors.length-1]==='white') correct=count-1;
+      else if(redCount>1) correct=colors.lastIndexOf('red');
+      else correct=count-1;
+    } else if(count===4){
+      if(redCount>1&&lastDigit%2!==0) correct=colors.lastIndexOf('red');
+      else if(colors[colors.length-1]==='yellow'&&!hasRed) correct=0;
+      else if(colors.filter(c=>c==='blue').length===1) correct=0;
+      else correct=count-1;
+    } else {
+      if(colors[colors.length-1]!=='black'&&redCount>1) correct=colors.lastIndexOf('red');
+      else if(colors[colors.length-1]==='yellow'||!hasBlue) correct=count-1;
+      else correct=rnd(0,count-1);
+    }
+    return {type:'wire',wires:colors,correctWire:correct,cutState:Array(count).fill(false)};
+  },
+  genButton(serial,leds,batteries,diff){
+    const colors=['red','blue','white','yellow','black'];
+    const labels=['ABORT','DETONATE','HOLD','PRESS'];
+    const btnColor=pick(colors);
+    const btnLabel=pick(labels);
+    // Logic: hold if blue and abort; or hold if >2 batteries and detonate; else tap
+    const needHold=(btnColor==='blue'&&btnLabel==='ABORT')||(batteries>2&&btnLabel==='DETONATE');
+    return {type:'button',btnColor,btnLabel,btnHold:needHold};
+  },
+  genKeypad(diff){
+    const digits=diff==='easy'?4:diff==='medium'?5:6;
+    const code=Array.from({length:digits},()=>rnd(0,9)).join('');
+    return {type:'keypad',kpadCode:code,kpadInput:'',digits};
+  },
+  genMemory(diff){
+    const stages=diff==='easy'?3:diff==='medium'?4:5;
+    const seq=Array.from({length:stages},()=>rnd(1,4));
+    const options=seq.map(s=>{
+      const set=[s];
+      while(set.length<4){ const n=rnd(1,4); if(!set.includes(n)) set.push(n); }
+      return shuffle(set);
+    });
+    const correct=seq.map((s,i)=>options[i].indexOf(s));
+    return {type:'memory',memSeq:seq,memOptions:options,memCorrect:correct,memStage:0};
+  },
+  genSwitch(diff){
+    const count=diff==='easy'?3:diff==='medium'?4:5;
+    const solution=Array.from({length:count},()=>Math.random()>.5);
+    return {type:'switch',switchCount:count,switchState:Array(count).fill(false),switchSolution:solution};
+  },
+  genSymbol(diff){
+    const count=diff==='easy'?4:diff==='medium'?5:6;
+    const pool=shuffle(SYMS).slice(0,count);
+    const order=shuffle([...Array(count).keys()]);
+    return {type:'symbol',symbols:pool,symOrder:order,symSelected:[]};
+  },
+  genMorse(){
+    const words=['REACT','SHELL','DELTA','ALPHA','BRAVO','FOXTROT','LIMA','OSCAR','TANGO'];
+    const word=pick(words);
+    let pattern='';
+    for(const ch of word){ pattern+=(MORSE_MAP[ch]||'')+'   '; }
+    return {type:'morse',morseWord:word,morsePattern:pattern.trim(),morseDisplay:'??? (listen to LED)',solved:false};
+  }
+};
+
+// ===================== MANUAL GENERATOR =====================
+const ManualGen = {
+  generate(bomb,diff){
+    let html='';
+    // Cover
+    html+=`<div class="manual-cover">
+      <h2>⚡ BOMB DEFUSAL MANUAL</h2>
+      <p>SN: ${bomb.serial} · MISSION ${bomb.level} · ${DIFFS[diff].name}</p>
+    </div>`;
+    // Bomb info section
+    html+=`<div class="man-section">
+      <h3>Bomb Information</h3>
+      <p><b>Serial:</b> ${bomb.serial}</p>
+      <p><b>Last digit of serial:</b> ${bomb.serial[bomb.serial.length-1]}</p>
+      <p><b>Batteries:</b> ${bomb.batteries}</p>
+      <p><b>LEDs lit:</b> ${bomb.leds.filter(Boolean).length}/4</p>
+      <p><b>Ports:</b> ${bomb.ports.join(', ')||'None'}</p>
+    </div>`;
+    // Generate section per module
+    bomb.modules.forEach((m,i)=>{
+      html+=ManualGen.moduleSection(m,i,bomb,diff);
+    });
+    // General tips
+    html+=`<div class="man-section">
+      <h3>Emergency Protocols</h3>
+      <div class="man-warn">You have 3 strikes. Each wrong action speeds up the timer. Communicate clearly.</div>
+      <div class="man-highlight">Read each module section carefully before giving instructions. Confirm wire colors and module labels with your partner.</div>
+      <ul>
+        <li>Always state color AND position of wires.</li>
+        <li>For button: specify HOLD (>600ms) or TAP (&lt;600ms).</li>
+        <li>For keypad: read digits one by one.</li>
+        <li>For memory: state the NUMBER to press, not position.</li>
+        <li>For switches: state which switches are UP (ON).</li>
+        <li>For symbols: give sequence order clearly.</li>
+      </ul>
+    </div>`;
+    return {html};
+  },
+  moduleSection(m,i,bomb,diff){
+    switch(m.type){
+      case 'wire': return ManualGen.wireSection(m,i,bomb);
+      case 'button': return ManualGen.buttonSection(m,i,bomb);
+      case 'keypad': return ManualGen.keypadSection(m,i);
+      case 'memory': return ManualGen.memSection(m,i);
+      case 'switch': return ManualGen.switchSection(m,i);
+      case 'symbol': return ManualGen.symbolSection(m,i);
+      case 'morse': return ManualGen.morseSection(m,i);
+      default: return '';
+    }
+  },
+  wireSection(m,i,bomb){
+    const serial=bomb.serial;
+    const lastDigit=parseInt(serial[serial.length-1])||0;
+    const count=m.wires.length;
+    const correct=m.correctWire;
+    let rule='';
+    if(count===3) rule=`With 3 wires:<ul><li>If no red wires → cut wire 2</li><li>If last wire is white → cut last wire</li><li>If more than 1 red → cut last red wire</li><li>Otherwise → cut last wire</li></ul>`;
+    else if(count===4) rule=`With 4 wires:<ul><li>If more than 1 red AND serial last digit is odd → cut last red wire</li><li>If last wire is yellow and no red → cut first wire</li><li>If exactly 1 blue wire → cut first wire</li><li>Otherwise → cut last wire</li></ul>`;
+    else rule=`With 5-7 wires:<ul><li>If last wire is not black and more than 1 red → cut last red</li><li>If last wire is yellow OR no blue → cut last wire</li><li>Otherwise → cut wire at random valid position</li></ul>`;
+    return `<div class="man-section">
+      <h3>Module ${i+1}: Wire Cutting</h3>
+      <p>Defuser sees <b>${count}</b> wires. Ask defuser to name each wire color from top to bottom.</p>
+      <table class="man-table"><tr><th>#</th><th>Position</th><th>Wire</th></tr>
+      ${m.wires.map((w,wi)=>`<tr><td>${wi+1}</td><td>${wi===0?'TOP':wi===m.wires.length-1?'BOTTOM':'MIDDLE'}</td><td style="color:${WIRE_CSS[w]}">${w.toUpperCase()}</td></tr>`).join('')}
+      </table>
+      ${rule}
+      <div class="man-highlight">For this bomb: Cut wire <b style="color:var(--green)">${correct+1}</b> (${m.wires[correct].toUpperCase()})</div>
+    </div>`;
+  },
+  buttonSection(m,i,bomb){
+    const needHold=m.btnHold;
+    return `<div class="man-section">
+      <h3>Module ${i+1}: Button</h3>
+      <p>Ask defuser: What color is the button? What does it say?</p>
+      <table class="man-table">
+        <tr><th>Color</th><th>Label</th><th>Action</th></tr>
+        <tr><td style="color:${WIRE_CSS[m.btnColor]}">${m.btnColor.toUpperCase()}</td><td>${m.btnLabel}</td><td style="color:${needHold?'var(--amber)':'var(--green)'}">${needHold?'HOLD (release when timer shows 3 or 5)':'TAP (quick press)'}</td></tr>
+      </table>
+      <div class="man-highlight">Rules:<ul>
+        <li>If button is blue and says ABORT → HOLD it</li>
+        <li>If >2 batteries and says DETONATE → HOLD it</li>
+        <li>Otherwise → TAP it</li>
+      </ul></div>
+      <div class="man-warn">For this bomb: Tell defuser to <b>${needHold?'HOLD':'TAP'}</b> the button.</div>
+    </div>`;
+  },
+  keypadSection(m,i){
+    return `<div class="man-section">
+      <h3>Module ${i+1}: Keypad</h3>
+      <p>Defuser must enter a numeric code.</p>
+      <div class="man-highlight">The correct code is: <b style="font-size:16px;letter-spacing:4px;color:var(--green)">${m.kpadCode}</b></div>
+      <p>Tell the code digit by digit. Defuser must use CLR to clear mistakes, then ENT to submit.</p>
+    </div>`;
+  },
+  memSection(m,i){
+    let html=`<div class="man-section"><h3>Module ${i+1}: Memory</h3>
+    <p>The defuser sees a sequence of numbers. They must press buttons in the correct order.</p>
+    <table class="man-table"><tr><th>Stage</th><th>Number shown</th><th>Press button</th></tr>`;
+    m.memSeq.forEach((n,si)=>{
+      html+=`<tr><td>${si+1}</td><td>${n}</td><td style="color:var(--green)">Press <b>${n}</b> (the button showing ${n})</td></tr>`;
+    });
+    html+=`</table><div class="man-highlight">Tell defuser: "In stage N, press the button that shows [number]."</div></div>`;
+    return html;
+  },
+  switchSection(m,i){
+    const onList=m.switchSolution.map((v,i)=>v?`Switch ${i+1}`:'').filter(Boolean).join(', ')||'None';
+    return `<div class="man-section">
+      <h3>Module ${i+1}: Switches</h3>
+      <p>Defuser sees ${m.switchCount} switches. They must set them to the correct positions.</p>
+      <table class="man-table"><tr><th>Switch</th><th>Position</th></tr>
+      ${m.switchSolution.map((v,si)=>`<tr><td>${si+1}</td><td style="color:${v?'var(--green)':'var(--red)'}">${v?'UP (ON)':'DOWN (OFF)'}</td></tr>`).join('')}
+      </table>
+      <div class="man-highlight">ON switches: ${onList}</div>
+    </div>`;
+  },
+  symbolSection(m,i){
+    const order=m.symOrder.map(idx=>m.symbols[idx]);
+    return `<div class="man-section">
+      <h3>Module ${i+1}: Symbols</h3>
+      <p>Defuser sees ${m.symbols.length} symbols. They must click them in the correct order.</p>
+      <div class="man-highlight">Correct order: <b style="font-size:18px;letter-spacing:6px">${order.join(' ')}</b></div>
+      <p>Read each symbol name carefully. State the ORDER in which to press them (left to right as listed above).</p>
+    </div>`;
+  },
+  morseSection(m,i){
+    const wordMorse=m.morseWord.split('').map(c=>MORSE_MAP[c]||'').join(' / ');
+    return `<div class="man-section">
+      <h3>Module ${i+1}: Morse Code</h3>
+      <p>Defuser sees a blinking LED. They need to decode it and type the word.</p>
+      <div class="man-highlight">The word is: <b style="font-size:18px;letter-spacing:4px;color:var(--green)">${m.morseWord}</b></div>
+      <p>Morse: <span style="font-size:11px;letter-spacing:2px;color:var(--amber)">${wordMorse}</span></p>
+      <table class="man-table"><tr><th>Letter</th><th>Code</th></tr>
+      ${m.morseWord.split('').map(c=>`<tr><td>${c}</td><td style="letter-spacing:2px">${MORSE_MAP[c]||'?'}</td></tr>`).join('')}
+      </table>
+      <p>Tell defuser the exact word to type into the input field.</p>
+    </div>`;
+  }
+};
+
+// ===================== INIT =====================
+function init(){
+  loadSettings();
+  // Loading animation
+  let prog=0;
+  const msgs=['INITIALIZING','LOADING MODULES','GENERATING BOMBS','CALIBRATING TIMER','READY'];
+  const bar=$('load-bar');
+  const status=$('load-status');
+  const ival=setInterval(()=>{
+    prog+=Math.random()*15+5;
+    if(prog>100) prog=100;
+    bar.style.width=prog+'%';
+    status.textContent=msgs[Math.min(Math.floor(prog/25),msgs.length-1)];
+    if(prog>=100){ clearInterval(ival); setTimeout(()=>showScreen('s-menu'),400); }
+  },60);
+  // Chat enter key
+  const ci=$('chat-input');
+  if(ci) ci.addEventListener('keydown',e=>{if(e.key==='Enter') sendChat();});
+  // Join code uppercase
+  const jc=$('join-code');
+  if(jc) jc.addEventListener('input',()=>{ jc.value=jc.value.toUpperCase(); });
+}
+
+// Start
+init();
+
+// Public API
+return {
+  showScreen,showOverlay,hideOverlay,
+  createRoom,joinRoom,copyRoomCode,
+  selectDiff,selectRole,confirmRole,
+  toggleReady,startGame,
+  cutWire,btnPress,btnRelease,kpadPress,
+  memPress,toggleSwitch,symPress,morseSubmit,
+  pauseGame,resumeGame,quitGame,restartGame,
+  sendChat,addChat,
+  toggleSetting,
+  renderScores,
+};
+})();
+</script>
+</body>
+</html>
